@@ -83,7 +83,7 @@ public class JoinActivity extends Activity {
         try { startActivity(new Intent(Intent.ACTION_VIEW, r.getUrl())); } catch (Exception ignored) {}
         return true;
       }
-      @Override public void onPageFinished(WebView v, String u) { autofill(); }
+      @Override public void onPageFinished(WebView v, String u) { autofill(); listenOnly(); }
     });
     web.setWebChromeClient(new WebChromeClient() {
       @Override public void onPermissionRequest(PermissionRequest request) {
@@ -95,7 +95,6 @@ public class JoinActivity extends Activity {
     });
     root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
     setContentView(root);
-    if (!hasMedia()) askMedia();
     web.loadUrl(url);
   }
 
@@ -149,6 +148,20 @@ public class JoinActivity extends Activity {
         + "[].slice.call(document.querySelectorAll('button')).filter(function(b){return vis(b)&&/присоедин|войти|join/i.test(b.textContent);})[0];"
         + "if(b)setTimeout(function(){b.click();},400);"
         + "},400);})(" + JSONObject.quote(name) + ");";
+    web.evaluateJavascript(js, null);
+  }
+
+  /** In the conference (BigBlueButton) picks "Только слушать" in the audio dialog as soon as it appears. */
+  void listenOnly() {
+    String js = "(function(){if(window.__knnListen)return;window.__knnListen=1;"
+        + "function vis(e){return e&&e.offsetParent!==null;}"
+        + "var k=0,t=setInterval(function(){if(++k>400){clearInterval(t);return;}"
+        + "var b=document.querySelector('[data-test=listenOnlyBtn],[data-test=listenOnlyButton]');"
+        + "if(!vis(b)){b=[].slice.call(document.querySelectorAll('button,[role=button]')).filter(function(e){"
+        + "var s=((e.getAttribute('aria-label')||'')+' '+e.textContent).toLowerCase();"
+        + "return vis(e)&&/только слушать|listen only|слушать/.test(s);})[0];}"
+        + "if(b){clearInterval(t);b.click();}"
+        + "},500);})();";
     web.evaluateJavascript(js, null);
   }
 
