@@ -117,7 +117,7 @@ public class MainActivity extends Activity {
     TextView title = text("ПараСтарт", 28, Color.WHITE, true);
     title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
     header.addView(title);
-    TextView sub = text("Ссылки на пары СК ОПП в один тап", 14, 0xD9FFFFFF, false);
+    TextView sub = text("Ссылки на пары в один тап", 14, 0xD9FFFFFF, false);
     sub.setPadding(0, dp(2), 0, dp(16));
     header.addView(sub);
 
