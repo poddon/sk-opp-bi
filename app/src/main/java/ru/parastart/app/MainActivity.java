@@ -24,7 +24,7 @@ import com.tom_roush.pdfbox.text.TextPosition;
 import org.json.*;
 
 public class MainActivity extends Activity {
-  static final String PREFS = "parastart", KEY = "links", FAV = "favs", SHEETS = "sheets", GROUP = "group";
+  static final String PREFS = "parastart", KEY = "links", FAV = "favs", SHEETS = "sheets", GROUP = "group", FIO = "fio", REMIND = "remind";
 
   static final int PRIMARY = 0xFF1E4FD8, PRIMARY_2 = 0xFF4F7DF5, BG = 0xFFF2F4F9, CARD = 0xFFFFFFFF,
       TEXT = 0xFF171C2B, MUTED = 0xFF6B7385, LINE = 0xFFE3E7EF, STAR = 0xFFFFB020, STAR_OFF = 0xFFC9CED8,
@@ -121,7 +121,7 @@ public class MainActivity extends Activity {
 
     LinearLayout top = new LinearLayout(this);
     top.setGravity(Gravity.CENTER_VERTICAL);
-    TextView title = text("ПараСтарт", 28, Color.WHITE, true);
+    TextView title = text("КНН пары", 28, Color.WHITE, true);
     title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
     LinearLayout.LayoutParams tl = lp(0, -2); tl.weight = 1;
     top.addView(title, tl);
@@ -135,6 +135,7 @@ public class MainActivity extends Activity {
     header.addView(top);
     sub = text("Ссылки на пары в один тап", 14, 0xD9FFFFFF, false);
     sub.setPadding(0, dp(2), 0, dp(16));
+    sub.setOnClickListener(v -> nameDialog(null));
     header.addView(sub);
 
     LinearLayout seg = new LinearLayout(this);
@@ -209,6 +210,9 @@ public class MainActivity extends Activity {
     setContentView(root);
     showGroup();
     render();
+    Reminders.channel(this);
+    Reminders.schedule(this);
+    if (fio().isEmpty()) root.post(() -> nameDialog(null));
   }
 
   TextView segTab(String label, int index) {
@@ -314,7 +318,7 @@ public class MainActivity extends Activity {
     go.setPadding(dp(6), 0, 0, dp(2));
     card.addView(go);
 
-    card.setOnClickListener(v -> open(url));
+    card.setOnClickListener(v -> open(url, name));
     card.setOnLongClickListener(v -> { copy(url); return true; });
     listBox.addView(card);
   }
@@ -341,7 +345,7 @@ public class MainActivity extends Activity {
           .setPositiveButton("Удалить", (d, x) -> { links.remove(link); saveLinks(); renderList(); })
           .setNegativeButton("Отмена", null).show());
       card.addView(del);
-      card.setOnClickListener(v -> open(link));
+      card.setOnClickListener(v -> open(link, teacher != null ? teacher : "Конференция"));
       card.setOnLongClickListener(v -> { copy(link); return true; });
       listBox.addView(card);
     }
@@ -390,9 +394,11 @@ public class MainActivity extends Activity {
   }
 
   // ---------- actions ----------
-  void open(String url) {
-    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-    catch (Exception ex) { Toast.makeText(this, "Не удалось открыть ссылку", Toast.LENGTH_SHORT).show(); }
+  void open(String url) { open(url, ""); }
+
+  void open(String url, String title) {
+    if (fio().isEmpty()) { nameDialog(() -> JoinActivity.open(this, url, title)); return; }
+    JoinActivity.open(this, url, title);
   }
 
   void copy(String url) {
@@ -476,6 +482,7 @@ public class MainActivity extends Activity {
           for (ScheduleParser.Sheet sh : found) storeSheet(sh);
           if (!found.isEmpty()) {
             saveSheets();
+            Reminders.schedule(this);
             info.setText("Расписание загружено.");
             selectTab(0);
             if (group().isEmpty() || findSheet() == null) groupDialog();
@@ -510,13 +517,38 @@ public class MainActivity extends Activity {
   void setGroup(String g) {
     getSharedPreferences(PREFS, 0).edit().putString(GROUP, g).apply();
     showGroup();
+    Reminders.schedule(this);
     selectTab(0);
   }
 
+  String fio() { return getSharedPreferences(PREFS, 0).getString(FIO, ""); }
+
   void showGroup() {
-    String g = group();
+    String g = group(), f = fio();
     groupChip.setText(g.isEmpty() ? "Группа ▾" : g + " ▾");
-    sub.setText(g.isEmpty() ? "Ссылки на пары в один тап" : "Пары группы " + g + " в один тап");
+    String who = f.isEmpty() ? "Нажми, чтобы ввести ФИО ✎" : f + " ✎";
+    sub.setText(who);
+  }
+
+  void nameDialog(Runnable after) {
+    EditText edit = new EditText(this);
+    edit.setHint("Фамилия Имя Отчество");
+    edit.setSingleLine(true);
+    edit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PERSON_NAME | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+    edit.setText(fio());
+    FrameLayout wrap = new FrameLayout(this);
+    wrap.setPadding(dp(20), dp(8), dp(20), 0);
+    wrap.addView(edit);
+    new AlertDialog.Builder(this).setTitle("Твоё ФИО")
+        .setMessage("С этим именем ты будешь автоматически входить на пары")
+        .setView(wrap)
+        .setPositiveButton("Сохранить", (d, w) -> {
+          String f = TextUtils.join(" ", edit.getText().toString().trim().split("\\s+"));
+          getSharedPreferences(PREFS, 0).edit().putString(FIO, f).apply();
+          showGroup();
+          if (after != null && !f.isEmpty()) after.run();
+        })
+        .setNegativeButton("Позже", null).show();
   }
 
   ArrayList<String> knownGroups() {
@@ -630,10 +662,12 @@ public class MainActivity extends Activity {
     return r;
   }
 
-  void loadSheets() {
-    sheets.clear();
+  void loadSheets() { sheets.clear(); sheets.addAll(readSheets(this)); }
+
+  static ArrayList<ScheduleParser.Sheet> readSheets(Context ctx) {
+    ArrayList<ScheduleParser.Sheet> sheets = new ArrayList<>();
     try {
-      JSONArray arr = new JSONArray(getSharedPreferences(PREFS, 0).getString(SHEETS, "[]"));
+      JSONArray arr = new JSONArray(ctx.getSharedPreferences(PREFS, 0).getString(SHEETS, "[]"));
       for (int i = 0; i < arr.length(); i++) {
         JSONObject o = arr.getJSONObject(i);
         ScheduleParser.Sheet sh = new ScheduleParser.Sheet();
@@ -655,10 +689,25 @@ public class MainActivity extends Activity {
         sheets.add(sh);
       }
     } catch (JSONException ignored) {}
+    return sheets;
   }
 
   /** Candidates from the teacher list for a name written in the schedule ("Саитова" or "Садыкова Д.Н."). */
-  ArrayList<String[]> lookup(String written) {
+  ArrayList<String[]> lookup(String written) { return lookup(bySurname, written); }
+
+  static HashMap<String, ArrayList<String[]>> surnameMap(Context ctx) {
+    HashMap<String, ArrayList<String[]>> m = new HashMap<>();
+    try (BufferedReader r = new BufferedReader(new InputStreamReader(ctx.getAssets().open("teachers.tsv"), StandardCharsets.UTF_8))) {
+      String line;
+      while ((line = r.readLine()) != null) {
+        String[] p = line.split("\t");
+        if (p.length == 2) m.computeIfAbsent(norm(p[0].split(" ")[0]), k -> new ArrayList<>()).add(p);
+      }
+    } catch (IOException ignored) {}
+    return m;
+  }
+
+  static ArrayList<String[]> lookup(HashMap<String, ArrayList<String[]>> bySurname, String written) {
     String[] w = written.trim().split("\\s+", 2);
     ArrayList<String[]> c = bySurname.get(norm(w[0]));
     if (c == null) return new ArrayList<>();
@@ -684,7 +733,7 @@ public class MainActivity extends Activity {
   void renderSchedule() {
     if (loading) { empty("Читаю расписание…", "Секунду"); return; }
     if (sheets.isEmpty()) {
-      empty("Расписания пока нет", "Поделись PDF с расписанием из MAX в ПараСтарт или выбери файл");
+      empty("Расписания пока нет", "Поделись PDF с расписанием из MAX в «КНН пары» или выбери файл");
       listBox.addView(pill("Загрузить PDF", true, this::pickPdf));
       return;
     }
@@ -763,6 +812,13 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams l2 = lp(0, -2); l2.weight = 1; l2.leftMargin = dp(5); l2.topMargin = dp(6);
     row.addView(a, l1); row.addView(b, l2);
     listBox.addView(row);
+    boolean rem = Reminders.enabled(this);
+    listBox.addView(pill(rem ? "🔔 Напоминать о парах: включено" : "🔕 Напоминать о парах: выключено", false, () -> {
+      getSharedPreferences(PREFS, 0).edit().putBoolean(REMIND, !Reminders.enabled(this)).apply();
+      int n = Reminders.schedule(this);
+      Toast.makeText(this, Reminders.enabled(this) ? "Напомню за " + Reminders.LEAD_MIN + " мин до пары (" + n + ")" : "Напоминания выключены", Toast.LENGTH_SHORT).show();
+      renderList();
+    }));
     TextView hint = text("Даты и время сверяй с официальным расписанием.", 12, MUTED, false);
     hint.setGravity(Gravity.CENTER);
     hint.setPadding(0, dp(14), 0, 0);
@@ -837,7 +893,7 @@ public class MainActivity extends Activity {
       go.setGravity(Gravity.CENTER);
       go.setBackground(ripple(round(PRIMARY, 12)));
       go.setPadding(dp(16), dp(9), dp(16), dp(9));
-      go.setOnClickListener(v -> open(url));
+      go.setOnClickListener(v -> open(url, name));
       go.setOnLongClickListener(v -> { copy(url); return true; });
       row.addView(go);
     }

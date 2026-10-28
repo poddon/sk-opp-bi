@@ -1,4 +1,4 @@
-name: Build ParaStart APK
+name: Build KNN pary APK
 on:
   push:
     branches: [parastart-android]
@@ -32,17 +32,19 @@ jobs:
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" build-log
       - uses: actions/upload-artifact@v4
         with:
-          name: ParaStart-debug-apk
+          name: KNN-pary-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
       - name: Publish APK (release + apk branch)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk ParaStart.apk
-          gh release view parastart-latest >/dev/null 2>&1 || gh release create parastart-latest --target "$GITHUB_SHA" --title "ПараСтарт (Android)" --notes "APK сборка ветки parastart-android" --prerelease
-          gh release upload parastart-latest ParaStart.apk --clobber
-          mkdir /tmp/apk && cp ParaStart.apk /tmp/apk/ && cd /tmp/apk
-          git init -q -b apk && git add ParaStart.apk
-          git -c user.name=ci -c user.email=ci@localhost commit -qm "ParaStart APK $GITHUB_SHA"
+          cp app/build/outputs/apk/debug/app-debug.apk KNN-pary.apk
+          gh release view parastart-latest >/dev/null 2>&1 || gh release create parastart-latest --target "$GITHUB_SHA" --title "КНН пары (Android)" --notes "APK сборка ветки parastart-android" --prerelease
+          gh release edit parastart-latest --title "КНН пары (Android)" || true
+          gh release delete-asset parastart-latest ParaStart.apk -y || true
+          gh release upload parastart-latest KNN-pary.apk --clobber
+          mkdir /tmp/apk && cp KNN-pary.apk /tmp/apk/ && cd /tmp/apk
+          git init -q -b apk && git add KNN-pary.apk
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "KNN pary APK $GITHUB_SHA"
           git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" apk
