@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
       String line;
       while ((line = r.readLine()) != null) {
         String[] p = line.split("\t");
-        if (p.length == 2) { teachers.add(p); nameByUrl.put(p[1], p[0]); }
+        if (p.length == 2) { teachers.add(p); String prev = nameByUrl.get(p[1]); nameByUrl.put(p[1], prev == null ? p[0] : prev + " / " + p[0]); }
       }
     } catch (IOException ignored) {}
   }
