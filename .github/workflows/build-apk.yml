@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -24,3 +24,14 @@ jobs:
           name: ParaStart-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publish APK (release + apk branch)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk ParaStart.apk
+          gh release view parastart-latest >/dev/null 2>&1 || gh release create parastart-latest --target "$GITHUB_SHA" --title "ПараСтарт (Android)" --notes "APK сборка ветки parastart-android" --prerelease
+          gh release upload parastart-latest ParaStart.apk --clobber
+          mkdir /tmp/apk && cp ParaStart.apk /tmp/apk/ && cd /tmp/apk
+          git init -q -b apk && git add ParaStart.apk
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "ParaStart APK $GITHUB_SHA"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" apk
