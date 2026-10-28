@@ -380,7 +380,7 @@ public class MainActivity extends Activity {
   }
 
   void copy(String url) {
-    ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
     cm.setPrimaryClip(ClipData.newPlainText("ссылка", url));
     Toast.makeText(this, "Ссылка скопирована", Toast.LENGTH_SHORT).show();
   }

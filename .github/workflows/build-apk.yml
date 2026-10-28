@@ -18,7 +18,18 @@ jobs:
         with:
           gradle-version: '8.7'
       - run: echo "sdk.dir=$ANDROID_HOME" > local.properties
-      - run: gradle --no-daemon :app:assembleDebug
+      - run: |
+          set -o pipefail
+          gradle --no-daemon :app:assembleDebug 2>&1 | tee build.log
+      - name: Save build log on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir /tmp/log && tail -300 build.log > /tmp/log/build.log && cd /tmp/log
+          git init -q -b build-log && git add build.log
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "build log $GITHUB_SHA"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" build-log
       - uses: actions/upload-artifact@v4
         with:
           name: ParaStart-debug-apk
