@@ -114,11 +114,22 @@ public class MainActivity extends Activity {
     header.setPadding(dp(20), dp(18), dp(20), dp(18));
     header.setElevation(dp(4));
 
+    LinearLayout top = new LinearLayout(this);
+    top.setGravity(Gravity.CENTER_VERTICAL);
     TextView title = text("ПараСтарт", 28, Color.WHITE, true);
     title.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
-    header.addView(title);
-    TextView sub = text("Ссылки на пары в один тап", 14, 0xD9FFFFFF, false);
+    LinearLayout.LayoutParams tl = lp(0, -2); tl.weight = 1;
+    top.addView(title, tl);
+    profileChip = text("", 15, Color.WHITE, true);
+    profileChip.setGravity(Gravity.CENTER);
+    GradientDrawable pc = new GradientDrawable(); pc.setShape(GradientDrawable.OVAL); pc.setColor(0x33FFFFFF); pc.setStroke(dp(1.5f), 0x80FFFFFF);
+    profileChip.setBackground(pc);
+    profileChip.setOnClickListener(v -> profileDialog());
+    top.addView(profileChip, lp(dp(42), dp(42)));
+    header.addView(top);
+    sub = text("", 14, 0xD9FFFFFF, false);
     sub.setPadding(0, dp(2), 0, dp(16));
+    sub.setOnClickListener(v -> profileDialog());
     header.addView(sub);
 
     LinearLayout seg = new LinearLayout(this);
@@ -194,7 +205,51 @@ public class MainActivity extends Activity {
     body.addView(listBox, lp(-1, -2));
 
     setContentView(root);
+    showProfile();
     render();
+    if (fio().isEmpty() || group().isEmpty()) root.post(this::profileDialog);
+  }
+
+  // ---------- profile ----------
+  TextView sub, profileChip;
+  String fio() { return getSharedPreferences(PREFS, 0).getString("fio", ""); }
+  String group() { return getSharedPreferences(PREFS, 0).getString("group", ""); }
+
+  void showProfile() {
+    String f = fio(), g = group();
+    if (f.isEmpty() && g.isEmpty()) { sub.setText("Ссылки на пары в один тап"); profileChip.setText("+"); return; }
+    String[] w = f.split("\\s+");
+    String shortName = w.length >= 2 ? w[1] + " " + w[0] : f;
+    sub.setText(shortName + (g.isEmpty() ? "" : " · группа " + g));
+    profileChip.setText(f.isEmpty() ? "?" : initials(f));
+  }
+
+  void profileDialog() {
+    LinearLayout box = new LinearLayout(this);
+    box.setOrientation(LinearLayout.VERTICAL);
+    box.setPadding(dp(22), dp(6), dp(22), 0);
+    TextView l1 = text("ФИО", 13, MUTED, true);
+    EditText eFio = new EditText(this);
+    eFio.setHint("Иванова Мария Сергеевна");
+    eFio.setSingleLine(true);
+    eFio.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PERSON_NAME | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+    eFio.setText(fio());
+    TextView l2 = text("Группа", 13, MUTED, true);
+    l2.setPadding(0, dp(12), 0, 0);
+    EditText eGroup = new EditText(this);
+    eGroup.setHint("например, 38.02.08-1К");
+    eGroup.setSingleLine(true);
+    eGroup.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+    eGroup.setText(group());
+    box.addView(l1); box.addView(eFio); box.addView(l2); box.addView(eGroup);
+    new AlertDialog.Builder(this).setTitle("Мой профиль").setView(box)
+        .setPositiveButton("Сохранить", (d, w) -> {
+          String f = TextUtils.join(" ", eFio.getText().toString().trim().split("\\s+"));
+          String g = eGroup.getText().toString().trim().replace(" ", "").toUpperCase(new Locale("ru"));
+          getSharedPreferences(PREFS, 0).edit().putString("fio", f).putString("group", g).apply();
+          showProfile();
+        })
+        .setNegativeButton("Позже", null).show();
   }
 
   TextView segTab(String label, int index) {
