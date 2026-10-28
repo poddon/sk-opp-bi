@@ -19,6 +19,10 @@ public class Reminders {
     }
   }
 
+  static boolean auto(Context c) { return c.getSharedPreferences(MainActivity.PREFS, 0).getBoolean(MainActivity.AUTO, true); }
+
+  static boolean canPopUp(Context c) { return android.provider.Settings.canDrawOverlays(c); }
+
   static boolean enabled(Context c) { return c.getSharedPreferences(MainActivity.PREFS, 0).getBoolean(MainActivity.REMIND, true); }
 
   static PendingIntent alarm(Context c, int id, Intent extras, int flags) {
@@ -36,7 +40,8 @@ public class Reminders {
       if (old != null) { am.cancel(old); old.cancel(); }
     }
     String group = c.getSharedPreferences(MainActivity.PREFS, 0).getString(MainActivity.GROUP, "");
-    if (!enabled(c) || group.isEmpty()) return 0;
+    boolean auto = auto(c);
+    if ((!enabled(c) && !auto) || group.isEmpty()) return 0;
 
     HashMap<String, ArrayList<String[]>> bySurname = MainActivity.surnameMap(c);
     long now = System.currentTimeMillis();
@@ -55,8 +60,12 @@ public class Reminders {
         Calendar cal = Calendar.getInstance();
         cal.set(year, month - 1, day, mm[0] / 60, mm[0] % 60, 0);
         cal.set(Calendar.MILLISECOND, 0);
-        long at = cal.getTimeInMillis() - LEAD_MIN * 60_000L;
-        if (cal.getTimeInMillis() + 10 * 60_000L < now) continue;
+        long start = cal.getTimeInMillis();
+        long at = start - (auto ? 1 : LEAD_MIN) * 60_000L;
+        Calendar endCal = Calendar.getInstance();
+        endCal.set(year, month - 1, day, mm[1] / 60, mm[1] % 60, 0);
+        long end = endCal.getTimeInMillis();
+        if ((auto ? end - 5 * 60_000L : start + 10 * 60_000L) < now) continue;
         if (at < now) at = now + 2000;
 
         String url = null, who = "";
@@ -73,6 +82,8 @@ public class Reminders {
         extras.putExtra("joinTitle", l.subject.isEmpty() ? who : l.subject);
         if (url != null) extras.putExtra("url", url);
         extras.putExtra("id", id);
+        extras.putExtra("end", end);
+        extras.putExtra("auto", auto && url != null);
         PendingIntent pi = alarm(c, id, extras, PendingIntent.FLAG_UPDATE_CURRENT);
         if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
@@ -86,25 +97,36 @@ public class Reminders {
     channel(c);
     int id = data.getIntExtra("id", 0);
     String url = data.getStringExtra("url");
+    boolean auto = data.getBooleanExtra("auto", false);
     Intent open;
     if (url != null) {
       open = new Intent(c, JoinActivity.class);
       open.putExtra(JoinActivity.EXTRA_URL, url);
       open.putExtra(JoinActivity.EXTRA_TITLE, data.getStringExtra("joinTitle"));
+      open.putExtra(JoinActivity.EXTRA_AUTO, auto);
+      open.putExtra(JoinActivity.EXTRA_END, data.getLongExtra("end", 0));
     } else {
       open = new Intent(c, MainActivity.class);
     }
     open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     PendingIntent content = PendingIntent.getActivity(c, 1000 + id, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    String text = data.getStringExtra("text");
+    if (auto) {
+      text = text.replace(" · нажми, чтобы войти", "") + " · захожу автоматически";
+      if (canPopUp(c)) {
+        try { c.startActivity(open); } catch (Exception ignored) {}
+      }
+    }
     Notification.Builder b = new Notification.Builder(c, CHANNEL)
         .setSmallIcon(R.drawable.ic_notify)
         .setColor(MainActivity.PRIMARY)
         .setContentTitle(data.getStringExtra("title"))
-        .setContentText(data.getStringExtra("text"))
-        .setStyle(new Notification.BigTextStyle().bigText(data.getStringExtra("text")))
-        .setCategory(Notification.CATEGORY_REMINDER)
+        .setContentText(text)
+        .setStyle(new Notification.BigTextStyle().bigText(text))
+        .setCategory(auto ? Notification.CATEGORY_ALARM : Notification.CATEGORY_REMINDER)
         .setAutoCancel(true)
         .setContentIntent(content);
+    if (auto && !canPopUp(c)) b.setFullScreenIntent(content, true);
     if (url != null) b.addAction(new Notification.Action.Builder((android.graphics.drawable.Icon) null, "Войти на пару", content).build());
     c.getSystemService(NotificationManager.class).notify(2000 + id, b.build());
   }

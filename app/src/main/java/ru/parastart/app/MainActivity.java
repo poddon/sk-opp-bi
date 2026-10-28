@@ -24,7 +24,7 @@ import com.tom_roush.pdfbox.text.TextPosition;
 import org.json.*;
 
 public class MainActivity extends Activity {
-  static final String PREFS = "parastart", KEY = "links", FAV = "favs", SHEETS = "sheets", GROUP = "group", FIO = "fio", REMIND = "remind";
+  static final String PREFS = "parastart", KEY = "links", FAV = "favs", SHEETS = "sheets", GROUP = "group", FIO = "fio", REMIND = "remind", AUTO = "autojoin";
 
   static final int PRIMARY = 0xFF1E4FD8, PRIMARY_2 = 0xFF4F7DF5, BG = 0xFFF2F4F9, CARD = 0xFFFFFFFF,
       TEXT = 0xFF171C2B, MUTED = 0xFF6B7385, LINE = 0xFFE3E7EF, STAR = 0xFFFFB020, STAR_OFF = 0xFFC9CED8,
@@ -61,7 +61,7 @@ public class MainActivity extends Activity {
 
   @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); receive(intent); }
 
-  @Override protected void onResume() { super.onResume(); loadLinks(); render(); }
+  @Override protected void onResume() { super.onResume(); loadLinks(); render(); Reminders.schedule(this); }
 
   // ---------- data ----------
   void loadTeachers() {
@@ -812,6 +812,25 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams l2 = lp(0, -2); l2.weight = 1; l2.leftMargin = dp(5); l2.topMargin = dp(6);
     row.addView(a, l1); row.addView(b, l2);
     listBox.addView(row);
+    boolean auto = Reminders.auto(this);
+    if (auto && !Reminders.canPopUp(this)) {
+      TextView warn = text("Чтобы пары открывались сами, когда телефон разблокирован, разреши приложению «Поверх других приложений».", 14, 0xFF7A4B00, false);
+      warn.setBackground(round(0xFFFFF3D6, 14));
+      warn.setPadding(dp(14), dp(12), dp(14), dp(12));
+      warn.setLineSpacing(0, 1.15f);
+      LinearLayout.LayoutParams wl = lp(-1, -2); wl.topMargin = dp(14);
+      listBox.addView(warn, wl);
+      listBox.addView(pill("Разрешить автооткрытие", true, () -> {
+        try { startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))); }
+        catch (Exception e) { startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)); }
+      }));
+    }
+    listBox.addView(pill(auto ? "▶ Автовход на пары: включён" : "⏸ Автовход на пары: выключен", false, () -> {
+      getSharedPreferences(PREFS, 0).edit().putBoolean(AUTO, !Reminders.auto(this)).apply();
+      int n = Reminders.schedule(this);
+      Toast.makeText(this, Reminders.auto(this) ? "Буду заходить сам за минуту до начала (пар: " + n + ")" : "Автовход выключен", Toast.LENGTH_SHORT).show();
+      renderList();
+    }));
     boolean rem = Reminders.enabled(this);
     listBox.addView(pill(rem ? "🔔 Напоминать о парах: включено" : "🔕 Напоминать о парах: выключено", false, () -> {
       getSharedPreferences(PREFS, 0).edit().putBoolean(REMIND, !Reminders.enabled(this)).apply();

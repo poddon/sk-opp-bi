@@ -6,6 +6,8 @@
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-feature android:name="android.hardware.camera" android:required="false"/>
   <uses-feature android:name="android.hardware.microphone" android:required="false"/>
   <application android:label="КНН пары" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="false">
@@ -13,7 +15,7 @@
       <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
       <intent-filter><action android:name="android.intent.action.SEND"/><category android:name="android.intent.category.DEFAULT"/><data android:mimeType="application/pdf"/></intent-filter>
     </activity>
-    <activity android:name=".JoinActivity" android:exported="false" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" android:windowSoftInputMode="adjustResize"/>
+    <activity android:name=".JoinActivity" android:exported="false" android:launchMode="singleTask" android:taskAffinity="ru.parastart.app.join" android:excludeFromRecents="false" android:showWhenLocked="true" android:turnScreenOn="true" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize" android:windowSoftInputMode="adjustResize"/>
     <receiver android:name=".ReminderReceiver" android:exported="false">
       <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED"/>

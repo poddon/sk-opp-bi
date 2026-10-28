@@ -16,10 +16,13 @@ import org.json.JSONObject;
 
 /** Opens a VKS room inside the app, fills in the student's name and presses "join". */
 public class JoinActivity extends Activity {
-  static final String EXTRA_URL = "url", EXTRA_TITLE = "title";
+  static final String EXTRA_URL = "url", EXTRA_TITLE = "title", EXTRA_AUTO = "auto", EXTRA_END = "end";
 
   WebView web;
+  TextView titleView;
   String url;
+  final Handler handler = new Handler(Looper.getMainLooper());
+  final Runnable autoLeave = this::finish;
   PermissionRequest pending;
 
   public static void open(Context c, String url, String title) {
@@ -38,6 +41,7 @@ public class JoinActivity extends Activity {
     if (url == null || !url.startsWith("https://")) { finish(); return; }
     String title = getIntent().getStringExtra(EXTRA_TITLE);
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true); }
     getWindow().setStatusBarColor(MainActivity.PRIMARY);
 
     LinearLayout root = new LinearLayout(this);
@@ -51,6 +55,7 @@ public class JoinActivity extends Activity {
     close.setOnClickListener(v -> confirmExit());
     bar.addView(close);
     TextView t = new TextView(this);
+    titleView = t;
     t.setText(title == null || title.isEmpty() ? "Пара" : title);
     t.setTextColor(Color.WHITE);
     t.setTextSize(16);
@@ -96,6 +101,26 @@ public class JoinActivity extends Activity {
     root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
     setContentView(root);
     web.loadUrl(url);
+    planLeave(getIntent());
+  }
+
+  /** Auto-joined pairs are left by themselves a couple of minutes after the pair ends. */
+  void planLeave(Intent i) {
+    handler.removeCallbacks(autoLeave);
+    long end = i.getLongExtra(EXTRA_END, 0);
+    if (i.getBooleanExtra(EXTRA_AUTO, false) && end > 0) handler.postDelayed(autoLeave, Math.max(60_000L, end + 2 * 60_000L - System.currentTimeMillis()));
+  }
+
+  /** The next pair arrives while we are still in the previous one: switch rooms. */
+  @Override protected void onNewIntent(Intent i) {
+    super.onNewIntent(i);
+    String u = i.getStringExtra(EXTRA_URL);
+    if (u == null || !u.startsWith("https://")) return;
+    setIntent(i);
+    String title = i.getStringExtra(EXTRA_TITLE);
+    titleView.setText(title == null || title.isEmpty() ? "Пара" : title);
+    if (!u.equals(url) || i.getBooleanExtra(EXTRA_AUTO, false)) { url = u; web.loadUrl(url); }
+    planLeave(i);
   }
 
   TextView barButton(String label) {
@@ -174,6 +199,7 @@ public class JoinActivity extends Activity {
   @Override public void onBackPressed() { confirmExit(); }
 
   @Override protected void onDestroy() {
+    handler.removeCallbacks(autoLeave);
     if (web != null) { web.loadUrl("about:blank"); web.destroy(); }
     super.onDestroy();
   }
